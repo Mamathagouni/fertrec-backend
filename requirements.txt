@@ -3,6 +3,7 @@ uvicorn[standard]
 pydantic
 numpy
 joblib
+scikit-learn
 torch
 tensorflow-cpu
 pillow
