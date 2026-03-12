@@ -1,0 +1,9 @@
+{
+  "esp32_farm_001": {
+    "device_id": "esp32_farm_001",
+    "Temperature": 33.8,
+    "Humidity": 38.0,
+    "Moisture": 39.0,
+    "timestamp": "2026-03-11T22:31:29.270378"
+  }
+}

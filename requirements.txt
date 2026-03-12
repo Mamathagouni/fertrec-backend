@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+numpy
+joblib
+torch
+tensorflow-cpu
+pillow
+requests
+python-multipart
