@@ -4,11 +4,10 @@ pydantic
 numpy
 joblib
 scikit-learn
-torch
-tensorflow-cpu
+torch==2.2.0
+tensorflow-cpu==2.12.0
 pillow
 requests
 python-multipart
 firebase-admin
 google-cloud-firestore
-
