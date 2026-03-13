@@ -9,3 +9,5 @@ tensorflow-cpu
 pillow
 requests
 python-multipart
+firebase-admin
+google-cloud-firestore
