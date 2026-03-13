@@ -14,13 +14,25 @@ firebase_ready = False
 db = None
 
 try:
-    cred = credentials.Certificate("firebase_key.json")
-    firebase_admin.initialize_app(cred)
+    FIREBASE_KEY_PATH = "firebase_key.json"
+
+    # Render secret files path
+    if not os.path.exists(FIREBASE_KEY_PATH):
+        FIREBASE_KEY_PATH = "/etc/secrets/firebase_key.json"
+
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        firebase_admin.initialize_app(cred)
+
     db = firestore.client()
     firebase_ready = True
     print("Firebase connected")
+
 except Exception as e:
+    firebase_ready = False
+    db = None
     print("Firebase not connected:", e)
+
 
 # -----------------------------
 # Data model
@@ -31,21 +43,24 @@ class IoTData(BaseModel):
     Humidity: float
     Moisture: float
 
+
 # -----------------------------
 # Memory cache
 # -----------------------------
 last_iot_data = {}
 
+
 # -----------------------------
-# Root
+# Root endpoint
 # -----------------------------
 @app.get("/")
 def root():
     return {
         "status": "API Running",
-        "supported_modes": ["IOT","OFFLINE","AUTO"],
+        "supported_modes": ["IOT", "OFFLINE", "AUTO"],
         "message": "Use /predict_iot for sensor input"
     }
+
 
 # -----------------------------
 # IoT receive endpoint
@@ -61,10 +76,12 @@ def receive_iot(data: IoTData):
         "timestamp": datetime.utcnow().isoformat()
     }
 
-    # save locally
+    # Save locally
     last_iot_data[data.device_id] = entry
 
-    # irrigation advice
+    # -----------------------------
+    # Irrigation Advice
+    # -----------------------------
     moisture = data.Moisture
 
     if moisture < 25:
@@ -73,8 +90,8 @@ def receive_iot(data: IoTData):
         advice_te = "నేల తేమ తక్కువగా ఉంది. నీరు పెట్టాలి."
     elif moisture <= 70:
         status = "OK"
-        advice_en = "Moisture is normal (25-70%). Irrigation not required now."
-        advice_te = "తేమ సాధారణంగా ఉంది (25-70%). ప్రస్తుతం నీరు అవసరం లేదు."
+        advice_en = "Moisture is normal (25–70%). Irrigation not required now."
+        advice_te = "తేమ సాధారణంగా ఉంది (25–70%). ప్రస్తుతం నీరు అవసరం లేదు."
     else:
         status = "HIGH"
         advice_en = "Soil moisture high. Do not irrigate."
@@ -86,10 +103,12 @@ def receive_iot(data: IoTData):
         "advice_te": advice_te
     }
 
-    # save to Firestore
+    # -----------------------------
+    # Save to Firestore
+    # -----------------------------
     firestore_status = "not_connected"
 
-    if firebase_ready:
+    if firebase_ready and db is not None:
         try:
             db.collection("iot_sensor_data").add(entry)
             firestore_status = "saved"
@@ -103,8 +122,9 @@ def receive_iot(data: IoTData):
         "firestore_status": firestore_status
     }
 
+
 # -----------------------------
-# Latest IoT
+# Latest IoT (local)
 # -----------------------------
 @app.get("/iot/latest")
 def latest():
@@ -117,8 +137,9 @@ def latest():
 
     return data
 
+
 # -----------------------------
-# All IoT
+# All IoT (local)
 # -----------------------------
 @app.get("/iot/all")
 def all_iot():
@@ -128,42 +149,54 @@ def all_iot():
         "items": last_iot_data
     }
 
+
 # -----------------------------
-# Cloud latest
+# Cloud latest (Firestore)
 # -----------------------------
 @app.get("/cloud/latest")
 def cloud_latest():
 
-    if not firebase_ready:
+    if not firebase_ready or db is None:
         return {"error": "firebase not connected"}
 
-    docs = db.collection("iot_sensor_data") \
-        .order_by("timestamp", direction=firestore.Query.DESCENDING) \
-        .limit(1).stream()
+    try:
+        docs = db.collection("iot_sensor_data") \
+            .order_by("timestamp", direction=firestore.Query.DESCENDING) \
+            .limit(1).stream()
 
-    for d in docs:
-        return d.to_dict()
+        for d in docs:
+            data = d.to_dict()
+            data["doc_id"] = d.id
+            return data
 
-    return {"message":"no data"}
+        return {"message": "no data"}
+
+    except Exception as e:
+        return {"error": str(e)}
+
 
 # -----------------------------
-# Cloud all
+# Cloud all (Firestore)
 # -----------------------------
 @app.get("/cloud/all")
 def cloud_all():
 
-    if not firebase_ready:
+    if not firebase_ready or db is None:
         return {"error": "firebase not connected"}
 
-    docs = db.collection("iot_sensor_data").stream()
+    try:
+        docs = db.collection("iot_sensor_data").stream()
 
-    data = []
-    for d in docs:
-        item = d.to_dict()
-        item["doc_id"] = d.id
-        data.append(item)
+        data = []
+        for d in docs:
+            item = d.to_dict()
+            item["doc_id"] = d.id
+            data.append(item)
 
-    return {
-        "count": len(data),
-        "items": data
-    }
+        return {
+            "count": len(data),
+            "items": data
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
